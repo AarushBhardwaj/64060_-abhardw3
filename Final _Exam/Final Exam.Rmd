@@ -1,0 +1,796 @@
+---
+title: "Final Exam"
+author: "Aarush Bhardwaj"
+date: "05/05/2021"
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+
+Setting working directory to the current file location. 
+
+```{r}
+setwd("D:/A_Sem_1/ML/Final Exam")
+```
+# Data Importing ( Importing required Libraries and dataset)
+
+Including required libraries and setting seed.
+
+```{r}
+library(caret)
+library(factoextra)
+library(hrbrthemes)
+library(GGally)
+library(viridis)
+library(NbClust)
+
+library(readr)
+library(Hmisc)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+
+library(ggthemes)
+library(ggrepel)
+library(ggsignif)
+library(ggpubr)
+library(cowplot)
+set.seed(123)
+```
+
+Importing the bath soap data and checking for na values
+
+```{r}
+library(readr)
+BathSoap <- read_csv("BathSoap.csv", col_types = cols(`Member id` = col_number(), 
+    SEC = col_number(), FEH = col_number(), 
+    MT = col_number(), SEX = col_number(), 
+    AGE = col_number(), EDU = col_number(), 
+    HS = col_number(), CHILD = col_number(), 
+    CS = col_number(), `Affluence Index` = col_number(), 
+    `No. of Brands` = col_number(), `Brand Runs` = col_number(), 
+    `Total Volume` = col_number(), `No. of  Trans` = col_number(), 
+    Value = col_number(), `Trans / Brand Runs` = col_number(), 
+    `Vol/Tran` = col_number(), `Avg. Price` = col_number(), 
+    `Pur Vol No Promo - %` = col_number(), 
+    `Pur Vol Promo 6 %` = col_number(), `Pur Vol Other Promo %` = col_number(), 
+    `Br. Cd. 57, 144` = col_number(), `Br. Cd. 55` = col_number(), 
+    `Br. Cd. 272` = col_number(), `Br. Cd. 286` = col_number(), 
+    `Br. Cd. 24` = col_number(), `Br. Cd. 481` = col_number(), 
+    `Br. Cd. 352` = col_number(), `Br. Cd. 5` = col_number(), 
+    `Others 999` = col_number(), `Pr Cat 1` = col_number(), 
+    `Pr Cat 2` = col_number(), `Pr Cat 3` = col_number(), 
+    `Pr Cat 4` = col_number(), `PropCat 5` = col_number(), 
+    `PropCat 6` = col_number(), `PropCat 7` = col_number(), 
+    `PropCat 8` = col_number(), `PropCat 9` = col_number(), 
+    `PropCat 10` = col_number(), `PropCat 11` = col_number(), 
+    `PropCat 12` = col_number(), `PropCat 13` = col_number(), 
+    `PropCat 14` = col_number(), `PropCat 15` = col_number()))
+
+summary(BathSoap)
+```
+```{r}
+
+```
+
+# Data Prepration
+
+# 1. Use k-means clustering to identify clusters of households based on:
+
+# a) Considering the variables that describe the purchase behavior:
+
+From the dataset we can see thta the variables that describe the purchase behavior are:
+
+-> vol/Trans
+
+-> Brand Runs
+
+-> No. of  Trans
+
+-> No. of Brands
+
+-> Others999
+
+-> Value
+
+-> Loyality_Brand
+
+Now in order to find the brand loyalty, we will find the maximum value in brands.
+This maximum value will correspond to the loyalty of the brand
+to the customer.
+
+We will do this by creating a new variable named Brand_Loyalty and store in this variable, the
+max values that correspond to that brand.
+
+Also a quick summary() review shows us that there are no Na values,
+So we will just normalize the data.
+
+After normalizing the data, we will find the optimal number of clusters using the
+fviz_nbclust() methhod and use method as silouhette, euclidean and  gap_stat.
+
+```{r}
+cust_loyalty1 <- BathSoap[,23:30]
+
+BathSoap$Brand_Loyalty <- as.numeric(apply(cust_loyalty1,1,max))
+
+Data1 <- BathSoap[,12:19,31,47]
+scale_Data1 <- as.data.frame(scale(Data1))
+
+fviz_nbclust(scale_Data1, kmeans, method = 'wss' ) +
+geom_vline(xintercept = 2, linetype = 2)+
+  labs(subtitle = 'Elbow method')
+
+fviz_nbclust(scale_Data1, kmeans, method = 'silhouette' ) +
+  labs(subtitle = 'silhoutte method')
+
+NbClust(data = scale_Data1, diss = NULL, distance = "euclidean",
+        min.nc = 2, max.nc = 15, method = "kmeans")
+```
+
+The optimal value of k according to above plots should be
+
+silhouette = 2
+Elbow = 4
+Nbclust = 2
+
+So we will Consider k = 2 and 4 to check how the formation of cluster changes with the change in value of k.
+
+Now we will run kmeans algo with k = 2 and 4 and nstart = 30.
+After running it, we will plot the clusters using fviz_cluster()
+
+After plotting, we will store the centers of the model in result1 variable in the form of
+data frame 
+
+Also we will print the size of the model.
+
+```{r}
+Model_Purchase_Behav <- kmeans(scale_Data1,2, nstart = 30)
+fviz_cluster(Model_Purchase_Behav, scale_Data1)
+
+Model_Purchase_Behav1 <- kmeans(scale_Data1,4, nstart = 30)
+fviz_cluster(Model_Purchase_Behav1, scale_Data1)
+
+result1 <- as.data.frame(cbind(1:nrow(Model_Purchase_Behav$centers), Model_Purchase_Behav$centers))
+
+result1$V1 <- as.factor(result1$V1)
+
+Model_Purchase_Behav$size
+```
+
+After seeing the clusters, we can see that k = 2 is good option as cluster formation is clear.
+
+The size of the model is`r Model_Purchase_Behav$size`
+
+Finally we will visualize the clusters using the ggparcoord() method, which will show us the behavior of the variables within the cluster.
+
+```{r}
+ggparcoord(result1, 
+           columns = 2:ncol(result1), groupColumn = 1,
+           showPoints = TRUE, 
+           title = "Characterstics of purchase behavior cluster",
+           alphaLines = 0.3)
+
+```
+
+Cluster Info:
+
+
+Cluster  No..of.Brands Brand.Runs  Total.Volume No..of..Trans   Value      Trans...Brand.Runs   Vol.Tran
+  1      -0.5417123	  -0.7088977	  -0.1772315	-0.5848426	    -0.3438382	     0.2926739	       0.3196693	
+  2       0.4836107	   0.6328645	   0.1582224	 0.5221150	     0.3069597	     -0.2612830    	  -0.2853830
+
+  Avg..Price   Others.999    Loyality_Brand
+	-0.3132908	  -0.5477087	     0.6584652
+	 0.2796886	   0.4889639	      -0.5878412
+	 
+	 
+-> The two clusters are well-separated on almost everything. Cluster 1 (n=283) belongs high activity & value, with low loyalty. 
+Cluster 2 (n=317) belongs to low activity & value, with high loyalty.
+
+-> cluster 1: Customers in this cluster have high brand loyalty; they buy the least number of brands with high volume transaction in the limited transaction they do. They have high number of brand runs and high vol. transactions. They donot buy from other999 category.
+
+-> cluster 2: Customers in this cluster buy from others999 brands thus indicating they are not at all brand loyal.They buy the highest number of brands and the volume of transaction is the least.
+
+
+# b) Considerinig variables that describe the basis of purchase.
+
+Variables that we willbe considering this time are:
+-> All price categories
+-> selling proportions
+-> purchase volume with no promotion, promotion 6 and other promotions
+
+We will follow same steps as previous part, 
+that is we will find maximum for particular columns 
+(from 36: 46) which will give us the value for the basis of customers purchase.
+
+then we will scale the data again and then find the number of clusters
+using fviz_nbclust() using silhouette, elbow and nbclust method
+
+```{r}
+cust_loyalty2 <- BathSoap[,36:46]
+
+BathSoap$Purchase_Basis_no <- as.numeric(apply(cust_loyalty2,1,which.max))
+BathSoap$Purchase_Basis <- as.numeric(apply(cust_loyalty2,1,max))
+
+Data2 <- BathSoap[,c(20:22,32:35,49)]
+scale_Data2 <- as.data.frame(scale(Data2))
+
+fviz_nbclust(scale_Data2, kmeans, method = 'silhouette')+
+  labs(subtitle = 'Silhouette method')
+
+NbClust(data = scale_Data2, diss = NULL, distance = "euclidean",
+        min.nc = 2, max.nc = 15, method = "kmeans")
+
+fviz_nbclust(scale_Data2, kmeans, method = 'wss') +
+    geom_vline(xintercept = 3, linetype = 2)+
+  labs(subtitle = 'Elbow method')
+
+
+```
+
+The value from the above plots are:
+
+silhouette = 6
+Elbow = 3
+Nbclust = 4
+
+Considering majority rule, the best number of clusters is  3
+
+But we will run kmeans model on scaled data2 , with value of k =3,4 and 7 to check how the formation of cluster changes with the change in value of k.
+
+After running kmeans, we will store the centers in a data frame named result2.
+
+And finally, we will show the size of the Model.
+
+```{r}
+
+Model_Purchase_Basis <- kmeans(scale_Data2, 3, nstart = 30)
+
+fviz_cluster(Model_Purchase_Basis, scale_Data2)
+
+Model_Purchase_Basis1 <- kmeans(scale_Data2, 4, nstart = 30)
+
+fviz_cluster(Model_Purchase_Basis1, scale_Data2)
+
+Model_Purchase_Basis2 <- kmeans(scale_Data2, 7, nstart = 30)
+
+fviz_cluster(Model_Purchase_Basis2, scale_Data2)
+
+result2 <- as.data.frame(cbind(1:nrow(Model_Purchase_Basis$centers), Model_Purchase_Basis$centers))
+
+result2$V1 <- as.factor(result2$V1)
+
+Model_Purchase_Basis$size
+
+```
+
+The above comparison shows that the clusters are much more clearly formed for k = 3
+but still have minor overlapping as comapred to the cluster formed with k =4 and 7.
+
+And also The size of the model is`r Model_Purchase_Basis$size`
+
+
+Finally we will visualize the behavior of the variables within cluster.
+
+```{r}
+ggparcoord(result2, 
+           columns = 2:5, groupColumn = 1,
+           showPoints = TRUE,
+           title = "Characterstics of Purchase Basis cluster",
+           alphaLines = 0.3)
+#ncol(result2)
+ggparcoord(result2, 
+           columns = 6:9, groupColumn = 1,
+           showPoints = TRUE,
+           title = "Characterstics of Purchase Basis cluster",
+           alphaLines = 0.3)
+
+```
+Cluster Info:
+
+Pur.Vol.No.Promo Pur.Vol.Promo.6  Pur.Vol.Other.Promo  Pr.Cat.1   Pr.Cat.2   Pr.Cat.3   Pr.Cat.4    purchase1_on
+0.006545016     -0.003720882	-0.0039774143	         -0.1214132	 0.2471883	-0.0800433	-0.04561153	 0.02464361
+-0.018171951     0.025594588	 0.0008760163           0.2702850	-0.2532167	-0.1107455	0.09322033	-0.17959512
+0.021950000	    -0.054763345	 0.0148265766	          -0.2220914	-0.3707842	0.6540099	-0.06039009	 0.39062703
+
+-> Cluster1: I shows the behavior of Customers purchase products from a single price category(pr.cat 3). Their purchases are affected by  promotional offers.The customers purchase products of a specific price category mostly and they have a high brand loyalty.
+
+-> cluster2: The behavior of Customers in this cluster is that they purchase products from a single price category(pr.cat 2). They purchase almost similarly all the time ( Even if there is price offers or no price offers). We could periodically send the discount offers to them.
+
+-> cluster3: The behavior of Customers in this cluster shows that they purchase products from a single price category(pr.cat 4 and pr.cat 1). They purchase based on the promotions (Pur.Vol.Promo 6) and they doesnt buy when there is no promo. To them as well we could periodically send the discount offers.
+
+# C) Considering variables that describe both purchase bhavior and basis of purchase.
+
+Here we are again scale the required data from BathSoap dataset and the running the
+fviz_nbcluster() to find the number of clusters, using elbow, silhouette and nbclust.
+
+```{r}
+
+Data3<- BathSoap[,c(12:22, 31:35,49)]
+scale_Data3 <- as.data.frame(scale(Data3))
+
+fviz_nbclust(scale_Data3, kmeans, method = 'silhouette')+
+  labs(subtitle = "Silhouette method")
+
+NbClust(data = scale_Data3, diss = NULL, distance = "euclidean",
+        min.nc = 2, max.nc = 15, method = "kmeans")
+
+fviz_nbclust(scale_Data3, kmeans, method = 'wss') +
+    geom_vline(xintercept = 4, linetype = 4)+
+  labs(subtitle = 'Elbow method')
+
+```
+
+According to the plots, the best number of clusters according to different methods are:
+
+silhouette = 8
+Elbow = 4
+Nbclust = 5
+
+Now, we will consider the value ok = 5 because we don't want to have too many cluster as they might might not capture the realtionship that we want them to show, among the variables.
+
+So  we will run kmeans model for k = 5, but will also show the clusters for k = 4 and 8. 
+Then we will store the centers for the model, with best cluster formation (K = 5).
+
+
+
+```{r}
+Model_Behav_Basis1 <- kmeans(scale_Data3, 5, nstart = 50)
+fviz_cluster(Model_Behav_Basis1, scale_Data3)
+
+Model_Behav_Basis2 <- kmeans(scale_Data3, 4, nstart = 50)
+fviz_cluster(Model_Behav_Basis2, scale_Data3)
+
+Model_Behav_Basis3 <- kmeans(scale_Data3, 8, nstart = 50)
+fviz_cluster(Model_Behav_Basis3, scale_Data3)
+
+result3 <- as.data.frame(cbind(1:nrow(Model_Behav_Basis1$centers), Model_Behav_Basis1$centers))
+result3$V1 <- as.factor(result3$V1)
+
+Model_Behav_Basis1$size
+```
+
+As it is clear fro the plot, the model with k = 5 has clear and better cluster formation as
+compared to k = 4 and 8. So we will consider k = 5 and save it's centers.
+
+The size of the model is`r Model_Behav_Basis1$size`
+
+
+Finally we will visualize the variables within the cluster.
+
+```{r}
+ggparcoord(result3, columns = 2:9, groupColumn = 1,
+           showPoints = TRUE,
+           title = "Characterstics of both purchase basis and behavior cluster (c 2-9).",
+           alphaLines = 0.3)
+
+ggparcoord(result3, columns = 10:18, groupColumn = 1,
+           showPoints = TRUE,
+           title = "Characterstics of both purchase basis and behavior cluster (c 10-18).",
+           alphaLines = 0.3)
+```
+
+Cluster Info:
+
+-> Cluster1: The behavior of Customers in this cluster shows that they purchase products from a single price category(pr.cat 4) and with other999 brands only with the promotion (promo 6).We could periodically send the discount offers to them as well.
+
+-> Cluster2: The cluster has  moderate transactions and They buy products from Pr.Cat 2 and also they are brand loyal. They buy products even though with No promos available.
+
+-> Cluster3: The cluster has  least number of brands, brand runs,highest transaction brand runs and they buy least from other999. They  purchase high volume product from single category pr.cat 3 when other promo is available. Brand loyal.We should periodically send the discount offers when promo is available.
+
+-> Cluster4: They are least brand loyal customers.They are neither least nor highest in other characteristics when compared to other clusters but they have the highest no of transactions and brand runs.
+
+-> Cluster5: This cluster have least total volume of transactions, high Avg.price and highest peak in brand loyality (pr.cat1)
+
+Now, we will compare cluster sizes
+
+```{r}
+
+Model_Purchase_Behav$size
+Model_Purchase_Basis$size
+ Model_Behav_Basis1$size
+
+```
+
+
+Q- How should K be chosen?
+
+Ans) The value of ‘K’ can be choosen based on :
+>>The intra-cluster distances. That is when they are minimum in all clusters
+>>The clusters are well apart. That is, the inter cluster distances are maximum.
+
+-> In all above segmentation, we observe that for k= 3, distance within clusters is minimum and distance between clusters is maximum. we conclude that K-means algorithm with K=3 is the best model.
+
+Q- How should the percentages of total purchases comprised by various brands be treated? Isn’t a customer who #buys all brand A just as loyal as a customer who buys all brand B? What will be the effect on any distance measure of using the brand share variable as is?
+
+-> The percentages of total purchases should not be considered individually as they increase the inter cluster distances thus decreasing the effectiveness of the clustering. Instead, consider MaxBrCode(Max proportion of purchase) which gives the brand loyalty of the customer. 
+
+
+
+# 2. Select which segmentation is best according to you, out of (Demographic, Brand Loyalty and 
+# Basis of Purchase)
+
+Now, in order to choose the best segmentation, we first need to add demographic( like (which includes such as gender, age, familial and marital status and education) to first 2 modelling techniques.
+
+a) Adding demographic to describe the purchase behavior
+
+We will store the necessary variables in Data4, scale the data4 and then
+use silhouette method to see the best value for k.
+
+```{r}
+
+Data4 <- BathSoap[,c(2:19,31,47)]
+scale_Data4 <- as.data.frame(scale(Data4))
+
+fviz_nbclust(scale_Data4, kmeans, method = 'silhouette') +
+  labs(subtitle = "Silhouette method")
+
+fviz_nbclust(scale_Data4, kmeans, method = 'wss') +
+    geom_vline(xintercept = 2, linetype = 4)+
+  labs(subtitle = 'Elbow method')
+
+
+```
+
+According to our plots, the best number of clusters are:
+Elbow 2
+Silhoutte 2
+
+Here the optimal value is 2, 
+So we will use  k = 2 to train our model.
+Let us visualize the value of k =6 as well (Since elbow method shows  bend at that point)
+
+```{r}
+
+Model_Purchase_Behav_demograph1 <- kmeans(scale_Data4, 2, nstart = 50)
+fviz_cluster(Model_Purchase_Behav_demograph1, scale_Data4)
+
+Model_Purchase_Behav_demograph2 <- kmeans(scale_Data4, 6, nstart = 50)
+fviz_cluster(Model_Purchase_Behav_demograph2, scale_Data4)
+
+result4 <- as.data.frame(cbind(1:nrow(Model_Purchase_Behav_demograph1$centers), Model_Purchase_Behav_demograph1$centers))
+
+result4$V1 <- as.factor(result4$V1)
+
+```
+
+The above plot shows us that there are 2 distinct clusters.
+
+So k = 2 is the best value
+
+Now ultimately, we will visualize this cluster.
+
+```{r}
+ggparcoord(result4, 
+           columns = 2:10,
+           groupColumn = 1,
+           showPoints = TRUE,
+           title = 'Characterstics of purchase behavior cluster with demographics',
+           alphaLines = 0.3)
+#ncol(result4)
+ggparcoord(result4, 
+           columns = 11:18,
+           groupColumn = 1,
+           showPoints = TRUE,
+           title = 'Characterstics of purchase behavior cluster with demographics',
+           alphaLines = 0.3)
+```
+
+One thing to note. Before running kmean() in the above part, the critieria thta we narrowed to is as follows:
+
+-> Minimum distance within cluster
+-> Maximum distance between clusters
+-> Information from centeroid plot of clusters
+
+Now, similarly we will add demographic to basis of purchase as well.
+
+We will take the required columns, as a dataframe in Data5, scale it and then find optimal value of k using fviz_nbclust()
+
+```{r}
+
+Data5 <- BathSoap[,c(2:11,20:22,31:35,47,49)]
+scale_data5 <- as.data.frame(scale(Data5))
+
+fviz_nbclust(scale_data5, kmeans, method = 'silhouette')+
+  labs(subtitle = "Silhouette method")
+
+fviz_nbclust(scale_data5, kmeans, method = 'wss') +
+    geom_vline(xintercept = 2, linetype = 4)+
+  labs(subtitle = 'Elbow method')
+
+```
+
+Once again we get the optimal value of k = 2. 
+
+We will run the kmeans model with k = 2 and 5 (to look for variations) and store the centers of our desired model in result dataframe
+
+```{r}
+
+Model_Purchase_Basis_Demograph1 <- kmeans(scale_data5, 2, nstart = 50)
+fviz_cluster(Model_Purchase_Basis_Demograph1, scale_data5)
+
+Model_Purchase_Basis_Demograph2 <- kmeans(scale_data5, 5, nstart = 50)
+fviz_cluster(Model_Purchase_Basis_Demograph2, scale_data5)
+
+result5 <- as.data.frame(cbind(1:nrow(Model_Purchase_Basis_Demograph1$centers), Model_Purchase_Basis_Demograph1$centers))
+
+result5$V1 <- as.factor(result5$V1)
+
+```
+
+Since we have similar situation, which we encountered with the Model_Purchase_Behav_demograph1, we will consider the value of k = 2.
+
+Finally we will visualize the plot.
+
+```{r}
+ggparcoord(result5,
+           columns = 2:19,
+           groupColumn = 1,
+           showPoints = TRUE,
+           title = "Characterstics of Basis of Purchase cluster with Demographics", 
+           alphaLines = 0.3)
+```
+
+Now we will form cluster using all the variables.
+
+We will take all the variables that we are going to use and put it in Data6
+
+After that we will scale it and find the optimal value of k (using fviz_nbclust()),
+using silhouette and elbow method
+
+```{r}
+
+Data6 <- BathSoap[,c(2:11,12:22,31:35,47,49)]
+scale_Data6 <- as.data.frame(scale(Data6))
+
+fviz_nbclust(scale_Data6, kmeans, method = 'silhouette')+
+  labs(subtitle = "Silhouette method")
+
+fviz_nbclust(scale_Data6, kmeans, method = 'wss') +
+    geom_vline(xintercept = 2, linetype = 4)+
+  labs(subtitle = 'Elbow method')
+
+```
+
+Again, the optimal value shown is 2 but we will train model with both 2 and 4.
+
+```{r}
+Model_Behav_Basis_Demograph1 <- kmeans(scale_Data6, 4, nstart = 50)
+fviz_cluster(Model_Behav_Basis_Demograph1, scale_Data6)
+
+Model_Behav_Basis_Demograph2 <- kmeans(scale_Data6, 2, nstart = 50)
+fviz_cluster(Model_Behav_Basis_Demograph2, scale_Data6)
+
+result6 <- as.data.frame(cbind(1:nrow(Model_Behav_Basis_Demograph1$centers), Model_Behav_Basis_Demograph1$centers))
+
+result6$V1 <- as.factor(result6$V1)
+
+```
+
+As shown by the plot, even though k = 2 forms clear and distinct cluster, we will choose k = 4.
+
+
+```{r}
+ggparcoord(result6,
+           columns = 2:9, groupColumn = 1,
+           showPoints = TRUE,
+           title = 'Characterstics of Purchase Behavior and Basis with Demographics.',
+          alphaLines = 0.3)
+
+ggparcoord(result6,
+           columns = 10:18, groupColumn = 1,
+           showPoints = TRUE,
+           title = 'Characterstics of Purchase Behavior and Basis with Demographics.',
+          alphaLines = 0.3)
+```
+
+Q2  Select what you think is the best segmentation and comment on the characteristics (demographic, brand loyalty, and basis for purchase) of these clusters. (This information would be used to guide the development of advertising and promotional campaigns.)
+
+-> cluster 1(n=91): They are brand loyal. They are more concentrated on buying products which fall under category 3 and 4.The Purchase is high irrespective of the promotions.The volume transactions are high too.
+
+-> cluster 2(n=128): Customers are buying more products from other999 and we can also say they are  least loyal.They have the highest number of brands purchased.
+Since the Number of instances of consecutive purchase of brands is high so the number of transaction is also high.
+
+-> Cluster 3(n=158): have the high value of CS (Television Availability), Number of transactions, Total volume and value are high. so we can easily promote the product through advertisement. The purchase is high during the promo and they are not brand loyal as they are buying products from different categories.
+
+-> Cluster 4(n=223): They are loyal to brand(pr.cat 1), they tend to buy more during the promotion.The SEC is low.Cluster 2 customers have a higher degree of House hold members but low availability of Television.
+
+
+We will also display the size of clusters for comparison.
+
+```{r}
+Model_Purchase_Behav_demograph1$size
+Model_Purchase_Basis_Demograph1$size
+Model_Behav_Basis_Demograph1$size
+```
+
+From the above value, it is clear that cluster Model_Purchase_Behav_demograph1 and Model_Purchase_Basis_Demograph1 are almost similar in size, even though Model_Purchase_Basis_Demograph1 has less variables than Model_Purchase_Behav_demograph1.
+
+Due to this, we can say that choosing the cluster with the Purchase Basis with Demographic is the optimum segmentation criteria.
+
+
+```{r}
+ggparcoord(result5, columns = c(2,11:15,20,21),
+           groupColumn = 1,
+           showPoints = TRUE,
+           title = 'Characterstics of Purchase Basis cluster with Demographics.',
+           alphaLines = 0.5)
+```
+
+There are a few points that we can derive from the above graph:
+
+1. the customers are buy high quantity of other products and are not loyal to it at all.
+
+2. People in cluster 2 have high socioeconomic and they buy products irrespective of the Promos and stay loyal to it.
+
+3. People with low socioeconomic fall in the cluster 1 and 3 and they buy products with the promo offer and are not at all loyal to the product. 
+
+
+
+
+# 3. Develop a model that classifies the data into these segments. Since this information would most likely be used in targeting direct-mail promotions, it would be useful to select a market segment that would be defined as a success in the classification model.
+
+
+
+```{r}
+
+# Performing Data Modification so as to display the variables via relevant plots.
+
+
+
+# Converting Binary variables from numeric to factor(i.e. Binary variables)
+BathSoap1 <- BathSoap
+
+BathSoap$SEC <- factor(BathSoap$SEC)
+BathSoap$FEH <- factor(BathSoap$FEH)
+BathSoap$MT <- factor(BathSoap$MT)
+BathSoap$SEX <- factor(BathSoap$SEX)
+BathSoap$AGE <- factor(BathSoap$AGE)
+BathSoap$EDU <- factor(BathSoap$EDU)
+BathSoap$HS <- factor(BathSoap$HS)
+BathSoap$CHILD <- factor(BathSoap$CHILD)
+BathSoap$CS <- factor(BathSoap$CS)
+BathSoap$`Affluence Index` <- factor(BathSoap$`Affluence Index`)
+
+# Converting distinct number variables from numeric to integer
+BathSoap$`No. of Brands`<- as.integer(BathSoap$`No. of Brands`)
+BathSoap$`Brand Runs`<- as.integer(BathSoap$`Brand Runs`)
+BathSoap$`Total Volume`<- as.integer(BathSoap$`Total Volume`)
+BathSoap$`No. of  Trans`<- as.integer(BathSoap$`No. of  Trans`)
+
+
+# Converting percentages in character to floating numericals
+BathSoap$`Pur Vol No Promo - %`<-  as.numeric(str_replace(BathSoap$`Pur Vol No Promo - %`,"%",""))/100
+BathSoap$`Pur Vol Promo 6 %`<-  as.numeric(str_replace(BathSoap$`Pur Vol Promo 6 %`,"%",""))/100
+BathSoap$`Pur Vol Other Promo %`<-  as.numeric(str_replace(BathSoap$`Pur Vol Other Promo %`,"%",""))/100
+BathSoap$`Br. Cd. 24` <-  as.numeric(str_replace(BathSoap$`Br. Cd. 24`,"%",""))/100
+BathSoap$`Br. Cd. 57, 144`<-  as.numeric(str_replace(BathSoap$`Br. Cd. 57, 144`,"%",""))/100
+BathSoap$`Br. Cd. 55` <-  as.numeric(str_replace(BathSoap$`Br. Cd. 55`,"%",""))/100
+BathSoap$`Br. Cd. 272` <-  as.numeric(str_replace(BathSoap$`Br. Cd. 272`,"%",""))/100
+BathSoap$`Br. Cd. 286` <-  as.numeric(str_replace(BathSoap$`Br. Cd. 286`,"%",""))/100
+BathSoap$`Br. Cd. 481` <-  as.numeric(str_replace(BathSoap$`Br. Cd. 481`,"%",""))/100
+BathSoap$`Br. Cd. 352` <-  as.numeric(str_replace(BathSoap$`Br. Cd. 352`,"%",""))/100
+BathSoap$`Br. Cd. 5` <-  as.numeric(str_replace(BathSoap$`Br. Cd. 5`,"%",""))/100
+BathSoap$`Others 999` <-  as.numeric(str_replace(BathSoap$`Others 999`,"%",""))/100
+BathSoap$`Pr Cat 1` <-  as.numeric(str_replace(BathSoap$`Pr Cat 1`,"%",""))/100
+BathSoap$`Pr Cat 2` <-  as.numeric(str_replace(BathSoap$`Pr Cat 2`,"%",""))/100
+BathSoap$`Pr Cat 3` <-  as.numeric(str_replace(BathSoap$`Pr Cat 3`,"%",""))/100
+BathSoap$`Pr Cat 4` <-  as.numeric(str_replace(BathSoap$`Pr Cat 4`,"%",""))/100
+BathSoap$`PropCat 5` <-  as.numeric(str_replace(BathSoap$`PropCat 5`,"%",""))/100
+BathSoap$`PropCat 6` <-  as.numeric(str_replace(BathSoap$`PropCat 6`,"%",""))/100
+BathSoap$`PropCat 7` <-  as.numeric(str_replace(BathSoap$`PropCat 7`,"%",""))/100
+BathSoap$`PropCat 8` <-  as.numeric(str_replace(BathSoap$`PropCat 8`,"%",""))/100
+BathSoap$`PropCat 9` <-  as.numeric(str_replace(BathSoap$`PropCat 9`,"%",""))/100
+BathSoap$`PropCat 10`<-  as.numeric(str_replace(BathSoap$`PropCat 10`,"%",""))/100
+BathSoap$`PropCat 11`<-  as.numeric(str_replace(BathSoap$`PropCat 11`,"%",""))/100
+BathSoap$`PropCat 12`<-  as.numeric(str_replace(BathSoap$`PropCat 12`,"%",""))/100
+BathSoap$`PropCat 13`<-  as.numeric(str_replace(BathSoap$`PropCat 13`,"%",""))/100
+BathSoap$`PropCat 14`<-  as.numeric(str_replace(BathSoap$`PropCat 14`,"%",""))/100
+BathSoap$`PropCat 15`<-  as.numeric(str_replace(BathSoap$`PropCat 15`,"%",""))/100
+
+# Finding the total null values
+
+sum(is.na(BathSoap))
+BathSoap <- data.frame(BathSoap)
+BathSoap[, c(5,8,7,10)][BathSoap[,c(5,8,7,10)] == 0] <- NA
+head(BathSoap)
+
+# Counting the total number of zero values in the categorical data.
+
+colSums(is.na(BathSoap))
+NAValues <- colnames(BathSoap)[apply(BathSoap, 2, anyNA) ]
+NAValues
+
+# Imputing Zero insignificant values in categorical variables with their respective variable mode. 
+
+BathSoap$MT <- impute(BathSoap$MT, mode)
+BathSoap$EDU <- impute(BathSoap$EDU, mode)
+BathSoap$HS <- impute(BathSoap$HS, mode)
+BathSoap$CS <- impute(BathSoap$CS, mode)
+BathSoap$SEX <- impute(BathSoap$SEX, mode)
+
+```
+
+
+```{r warning=FALSE, fig.height=5, fig.width=10}
+
+Data_final <- BathSoap[,23:31]
+
+BathSoap$Loyality <- as.numeric(apply(Data_final,1,which.max))
+
+Data_final1 <- BathSoap[,c(2:11,19,20:22,31:35,47,48,50)]
+
+Data_final1$clusters <- Model_Purchase_Basis_Demograph1$cluster
+head(Data_final1)
+
+```
+```{r warning=FALSE, fig.height=5, fig.width=10}
+
+ggplot(Data_final1) +
+  aes(x =clusters,fill= SEX) +
+  geom_bar() +
+  scale_fill_hue() +
+  theme_minimal() +
+  facet_wrap(vars(c("Pr Cat 1","Pr Cat 2", "Pr Cat 3","Pr Cat 4","other999")))
+
+ggplot(Data_final1) +
+  aes(x =clusters,fill= CS) +
+  geom_bar() +
+  scale_fill_hue() +
+  theme_minimal() +
+  facet_wrap(vars(c(HS)))
+
+ggplot(Data_final1) +
+  aes(x =clusters,fill= CS) +
+  geom_bar() +
+  scale_fill_hue() +
+  theme_minimal() +
+  facet_wrap(vars(c("Pur Vol No Promo - %","Pur Vol Promo 6 %","Pur Vol Other Promo %")))
+
+ggplot(Data_final1) +
+  aes(x =clusters,fill= CS) +
+  geom_bar() +
+  scale_fill_hue() +
+  theme_minimal() +
+  facet_wrap(vars(c(SEC)))
+
+ggplot(Data_final1) +
+  aes(x =clusters,fill= EDU) +
+  geom_bar() +
+  scale_fill_hue() +
+  theme_minimal() +
+  facet_wrap(vars(MT))
+
+ggplot(Data_final1) +
+  aes(x =clusters,fill= SEX) +
+  geom_bar() +
+  scale_fill_hue() +
+  theme_minimal() + 
+  facet_wrap(vars(AGE))
+
+ggplot(Data_final1, aes(x =clusters, y=as.numeric(Data_final1$Affluence.Index), fill= AGE)) +  geom_bar(stat = 'identity') + facet_wrap(~EDU) + ggtitle("AFFLUENCE measure by EDUCATION WRT AGE")
+```
+
+# Message Conveyed by the plots:
+
+-> Since most customers from cluster 4 have access to TV/cable, television can be used for the promotions which might prove effective approach for a brand. cluster 1 have more CS = 1. With household people 4,5,7 and 10 and customers falling in cluster 4 have the highest CS = 1. 
+
+-> Considering education as demographics, there are a high proportion of college graduates in cluster 4 which buys value added packs and premium soaps which shows high brand Loyalty. It looks like most of the people are in 4th and 5th level.
+
+* SEC = 1(high socioeconomic class) with Cluster 4 customers who show a high tendency to buy premium soaps. There are high percentage of customers from other SEC sections in cluster 4, indicating that they prefer to buy any kind of soap. So, we can say that customers with high social economic status don't care about premium or popular soaps and also their brand royalty is high to the soap brand of their choice.
+
+* Most of the SocioEconomic class are Native speakers.The most clusters are dominated by the customer with a common Native language.  
+
+* Most of the customers in each cluster are women. It is clearly seen that all the  clusters have the highest number of women. Thus more products should be released that are more appealing to women than men.
+
+* Cluster 4 consists customers with highly affluent people across all education levels. People of Age group 4 are most affluent customer and have potential to be converted into brand loyal customers.
+
+
+## Conclusion:
+
+1)  From the above plot we can conclude that most customers are female and they belong to Age group 4 in cluster 4. So based on this company should plan manufacturing of new products and  their promotions  accordingly. 
+Also almost all of the customers from age Group 4 in most cluster are not brand loyal but prefer to buy value added packs, premium packs and soaps. 
+
+2) As most of the customers have TV/Cable at home ; It is the best way to promote the products.
+ 
